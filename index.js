@@ -40,12 +40,11 @@ async function run() {
   const config = parseInputArgs();
   const date = Date.now();
 
-  
-
   const result = await mainScraper('aline123', config);
 
   const outputPath = `output-${date}.json`;
   fs.writeFileSync(outputPath, JSON.stringify(result, null, 2));
+  
   console.log(`✅ Scraping completed! Results saved to ${outputPath}`);
 }
 

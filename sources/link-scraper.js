@@ -19,8 +19,20 @@ async function scrapeLink(givenURL) {
     // 1. Get all potential links
     const rawLinks = await getContentLinks(page);
     const fullLinks = rawLinks.map((e) => {
-      return e.isFull ? e.fullUrl : `${givenURL.href}${e.fullUrl}`
-    })
+      if (e.isFull) {
+        // For full URLs, just return as-is (but could filter to same domain)
+        return e.fullUrl.startsWith(givenURL.origin) ? e.fullUrl : null;
+      }
+      
+      // For relative URLs
+      try {
+        const url = new URL(e.fullUrl, givenURL.origin);
+        return url.toString();
+      } catch (err) {
+        console.warn(`Invalid URL: ${e.fullUrl}`);
+        return null;
+      }
+    }).filter(url => url !== null); // Remove any invalid URLs
     const contentLinks = [...new Set(fullLinks)];
 
     // console.log("\nAll content links:\n", contentLinks);
@@ -81,37 +93,84 @@ async function scrapeLink(givenURL) {
 
 async function getContentLinks(page) {
   return await page.evaluate(() => {
+    // A comprehensive selector list that includes container classes
     const linkSelectors = [
-      'a[href*="/blog/"]', 
+      'a[href*="/blog/"]',
+      'a[href*="/topics/"]',
+      'a[href*="/guide/"]',
+      'a[href*="/guides/"]',
       'article a[href]',
+      'section a[href]',
+      'div[class*="card"] a[href]',
+      'div[class*="topic"] a[href]',
+      'div[class*="company"] a[href]',
+      'div[class*="item"] a[href]',
+      'div[class*="content"] a[href]',
+      'div[class*="post"] a[href]',
       '.post-preview a[href]',
       '.blog-list a[href]',
+      '.topic-list a[href]',
+      '.company-list a[href]',
+      'h1 a[href]',
       'h2 a[href]',
-      'h3 a[href]'
+      'h3 a[href]',
+      'h4 a[href]'
     ];
     
     const links = new Set();
+    const currentOrigin = window.location.origin;
+    const currentPath = window.location.pathname;
     
+    // First pass: Try specific selectors
     for (const selector of linkSelectors) {
       const elements = document.querySelectorAll(selector);
-
-      elements.forEach(el => {
-        const a_href = el.getAttribute('href');
-        if (a_href) {
-          const isFull = a_href.startsWith('http');
-          const fullUrl = a_href.startsWith('http') ? a_href : 
-            `${a_href.startsWith('/') ? a_href : `/${a_href}`}`;
-
-          if(fullUrl) {
-            links.add({
-              isFull,
-              fullUrl
-            });
-          }
-        }
-      });
+      elements.forEach(el => processLinkElement(el, links, currentOrigin));
     }
-
+    
+    // Second pass: Fallback to all links if we didn't find enough
+    if (links.size < 5) {
+      const allLinks = document.querySelectorAll('a[href]');
+      allLinks.forEach(el => processLinkElement(el, links, currentOrigin));
+    }
+    
+    function processLinkElement(el, linksSet, origin) {
+      try {
+        const href = el.getAttribute('href');
+        if (!href || href.startsWith('#') || href.startsWith('javascript:')) return;
+        
+        let fullUrl;
+        
+        if (href.startsWith('http')) {
+          fullUrl = href;
+        } else if (href.startsWith('//')) {
+          fullUrl = window.location.protocol + href;
+        } else if (href.startsWith('/')) {
+          fullUrl = origin + href;
+        } else {
+          const baseDir = currentPath.substring(0, currentPath.lastIndexOf('/') + 1);
+          fullUrl = origin + baseDir + href;
+        }
+        
+        // Normalize URL
+        fullUrl = fullUrl.replace(new RegExp(`${origin}${origin}`, 'g'), origin);
+        fullUrl = fullUrl.replace(/([^:]\/)\/+/g, '$1');
+        
+        // Filter criteria
+        const isSameOrigin = fullUrl.startsWith(origin);
+        const isContentLink = /(\/blog\/|\/topics\/|\/posts\/|\/article\/|\/guide\/|\/guides\/)/i.test(fullUrl);
+        const isNotAsset = !/\.(pdf|jpg|png|gif|css|js|svg|ico)$/i.test(fullUrl);
+        
+        if (isSameOrigin && (isContentLink || linksSet.size < 10) && isNotAsset) {
+          linksSet.add({
+            isFull: fullUrl.startsWith('http'),
+            fullUrl: fullUrl
+          });
+        }
+      } catch (e) {
+        console.warn('Error processing link:', e);
+      }
+    }
+    
     return Array.from(links);
   });
 }
