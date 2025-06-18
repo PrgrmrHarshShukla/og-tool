@@ -32,21 +32,19 @@ async function scrapeLink(givenURL) {
         console.warn(`Invalid URL: ${e.fullUrl}`);
         return null;
       }
-    }).filter(url => url !== null); // Remove any invalid URLs
-    const contentLinks = [...new Set(fullLinks)];
+    }).filter(url => url !== null);
 
-    // console.log("\nAll content links:\n", contentLinks);
+    const contentLinks = [...new Set(fullLinks)];
     console.log(`📋 Found ${contentLinks.length} content links`);
 
-    // return;
-    
-    
+
     if (contentLinks.length === 0) {
       console.log(`⚠️ No content links found. Trying to scrape current page as single post...`);
       const currentPageItem = await scrapeSingleContentPage(page, givenURL);
       if (currentPageItem) items.push(currentPageItem);
       return items;
     }
+
 
     // 2. Scrape each content link (with rate limiting)
     for (let i = 0; i < contentLinks.length; i++) {
@@ -64,7 +62,6 @@ async function scrapeLink(givenURL) {
         await page.waitForTimeout(1000); // Additional wait for dynamic content
         
         const item = await scrapeSingleContentPage(page, givenURL);
-        // console.log("Related ITEM:", item);
         
         if (item) {
           items.push(item);
