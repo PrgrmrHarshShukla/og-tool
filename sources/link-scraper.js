@@ -2,7 +2,7 @@
 const { chromium } = require('playwright');
 const convertToMarkdown = require('../utils/markdown-converter');
 
-async function scrapeBlogPosts(givenURL) {
+async function scrapeLink(givenURL) {
   const browser = await chromium.launch({ headless: false });
   const page = await browser.newPage();
   
@@ -219,4 +219,4 @@ async function scrapeSingleBlogPage(page) {
   }
 }
 
-module.exports = { scrapeBlogPosts };
+module.exports = { scrapeLink };

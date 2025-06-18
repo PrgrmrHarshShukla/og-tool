@@ -7,52 +7,23 @@ function parseInputArgs() {
 
   // Default config: everything off
   const config = {
-    scrapeInterviewingIoBlog: false,
-    scrapeCompanyGuides: false,
-    scrapeInterviewGuides: false,
-    scrapeNilDSABlog: false,
+    scrapeUrl: false,
     scrapePDF: false,
-    generalUrl: '',
+    urls: [],
     pdfUrl: ''
   };
 
-  if (args.length === 0) {
-    config.scrapeInterviewingIoBlog = true;
-    config.scrapeCompanyGuides = true;
-    config.scrapeInterviewGuides = true;
-    config.scrapeNilDSABlog = true;
-    config.scrapePDF = true;
-    config.pdfUrl = 'C:/Users/91991/Downloads/OGTool_assignment_Aline_book.pdf';
-    // config.pdfUrl = 'path/to/book/pdf';
-
-
-    return config;
-  }
+  if (args.length === 0) return config;
 
   for (const input of args) {
-    if (input.startsWith('http')) {
-      const url = new URL(input);
-
-      if (url.hostname.includes('interviewing.io')) {
-        if (url.pathname.includes('/blog')) {
-          config.scrapeInterviewingIoBlog = true;
-        } else if (url.pathname.includes('/learn')) {
-          config.scrapeInterviewGuides = true;
-        } else if (url.pathname.includes('/guides')) {
-          config.scrapeCompanyGuides = true;
-        }
-      } else if (url.hostname.includes('nilmamano')) {
-        config.scrapeNilDSABlog = true;
-      } else {
-        console.warn(`⚠️ Unknown domain: ${url.hostname}. Defaulting to general scraping.`);
-        config.scrapeInterviewingIoBlog = true;
-        config.generalUrl = input;
-      }
-    } else if (input.toLowerCase().endsWith('.pdf')) {
+    if (input.toLowerCase().endsWith('.pdf')) {
       config.scrapePDF = true;
       config.pdfUrl = path.resolve(input);
-    } else {
-      console.warn(`⚠️ Ignored unknown input: ${input}`);
+    } 
+    else {
+      const url = new URL(input);
+      config.urls.push(url);
+      config.scrapeUrl = true;
     }
   }
 
@@ -62,6 +33,9 @@ function parseInputArgs() {
 async function run() {
   const config = parseInputArgs();
   const date = Date.now();
+
+  console.log("Config:\n", config);
+  
 
   const result = await mainScraper('aline123', config);
 
