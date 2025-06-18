@@ -9,11 +9,11 @@ async function mainScraper(teamId, config) {
   };
 
   try {
-    if(config.scrapeLink) {
-      console.log("Starting link scraping...");
-
-      for(const link in config.urls) {
-        console.log("\nScraping: ", link, "\n");
+    if(config.scrapeUrl) {
+      console.log(`🔍 Starting link scraping...`);
+      
+      for(const link of config.urls) {
+        console.log("\nScraping: ", link.href, "\n");
         const linkResults = await scrapeLink(link);
         results.items.push(linkResults);
       }

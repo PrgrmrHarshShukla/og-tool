@@ -1,39 +1,45 @@
-// sources/interviewing-io-blog.js
 const { chromium } = require('playwright');
 const convertToMarkdown = require('../utils/markdown-converter');
 
 async function scrapeLink(givenURL) {
   const browser = await chromium.launch({ headless: false });
   const page = await browser.newPage();
-  
+
+  const mainURL = givenURL.href;
+
   try {
     const items = [];
     
-    console.log(`🔍 Starting blog scraping...`);
-
-    const mainURL = givenURL ? givenURL : 'https://interviewing.io/blog';
-    
-    // Navigate to main blog page
+    // Navigate to main page
     await page.goto(mainURL, { 
       waitUntil: 'domcontentloaded',
       timeout: 30000 
     });
     
-    // 1. Get all potential blog links
-    const blogLinks = await getBlogLinks(page);
-    // console.log(`📋 Found ${blogLinks.length} blog post links`);
+    // 1. Get all potential links
+    const rawLinks = await getContentLinks(page);
+    const fullLinks = rawLinks.map((e) => {
+      return e.isFull ? e.fullUrl : `${givenURL.href}${e.fullUrl}`
+    })
+    const contentLinks = [...new Set(fullLinks)];
+
+    // console.log("\nAll content links:\n", contentLinks);
+    console.log(`📋 Found ${contentLinks.length} content links`);
+
+    // return;
     
-    if (blogLinks.length === 0) {
-      console.log(`⚠️ No blog links found. Trying to scrape current page as single post...`);
-      const currentPageItem = await scrapeSingleBlogPage(page);
+    
+    if (contentLinks.length === 0) {
+      console.log(`⚠️ No content links found. Trying to scrape current page as single post...`);
+      const currentPageItem = await scrapeSingleContentPage(page, givenURL);
       if (currentPageItem) items.push(currentPageItem);
       return items;
     }
 
-    // 2. Scrape each blog post (with rate limiting)
-    for (let i = 0; i < blogLinks.length; i++) {
-      const link = blogLinks[i];
-      console.log(`📖 Scraping (${i+1}/${blogLinks.length}): ${link}`);
+    // 2. Scrape each content link (with rate limiting)
+    for (let i = 0; i < contentLinks.length; i++) {
+      const link = contentLinks[i];
+      console.log(`📖 Scraping (${i+1}/${contentLinks.length}): ${link}`);
       
       try {
         await page.goto(link, { 
@@ -45,7 +51,7 @@ async function scrapeLink(givenURL) {
         await page.waitForSelector('body', { timeout: 5000 });
         await page.waitForTimeout(1000); // Additional wait for dynamic content
         
-        const item = await scrapeSingleBlogPage(page);
+        const item = await scrapeSingleContentPage(page, givenURL);
         // console.log("Related ITEM:", item);
         
         if (item) {
@@ -61,10 +67,10 @@ async function scrapeLink(givenURL) {
       }
     }
     
-    console.log(`🎉 Completed scraping: ${items.length} posts extracted`);
-    // console.log("ALL items:\n", items);
+    console.log(`🎉 Completed scraping: ${items.length} items extracted`);
+    console.log("ALL items:\n", items);
     return {
-      team_id: '', // You can add this from config
+      team_id: '',
       items: items
     };
     
@@ -73,8 +79,7 @@ async function scrapeLink(givenURL) {
   }
 }
 
-// Helper functions (not exported)
-async function getBlogLinks(page) {
+async function getContentLinks(page) {
   return await page.evaluate(() => {
     const linkSelectors = [
       'a[href*="/blog/"]', 
@@ -89,23 +94,29 @@ async function getBlogLinks(page) {
     
     for (const selector of linkSelectors) {
       const elements = document.querySelectorAll(selector);
+
       elements.forEach(el => {
-        const href = el.getAttribute('href');
-        if (href && href.includes('blog') && !href.includes('#')) {
-          const fullUrl = href.startsWith('http') ? href : 
-            `https://interviewing.io${href.startsWith('/') ? href : `/${href}`}`;
-          links.add(fullUrl);
+        const a_href = el.getAttribute('href');
+        if (a_href) {
+          const isFull = a_href.startsWith('http');
+          const fullUrl = a_href.startsWith('http') ? a_href : 
+            `${a_href.startsWith('/') ? a_href : `/${a_href}`}`;
+
+          if(fullUrl) {
+            links.add({
+              isFull,
+              fullUrl
+            });
+          }
         }
       });
-      
-      if (links.size > 0) break;
     }
-    
+
     return Array.from(links);
   });
 }
 
-async function scrapeSingleBlogPage(page) {
+async function scrapeSingleContentPage(page, givenURL) {
   try {
     const pageData = await page.evaluate(() => {
       // Content extraction
@@ -121,7 +132,9 @@ async function scrapeSingleBlogPage(page) {
         'div[class*="post"]',
         'div[class*="article"]',
         'div[class*="body"]',
-        'div[class*="text"]'
+        'div[class*="text"]',
+        'span',
+        'div'
       ];
       
       let bestContent = '';
@@ -193,7 +206,7 @@ async function scrapeSingleBlogPage(page) {
       return {
         title: title || document.title,
         content: bestContent,
-        author: author || 'interviewing.io',
+        author: author || "",
         selectorUsed: bestSelector,
         contentLength: maxLength
       };
@@ -210,7 +223,7 @@ async function scrapeSingleBlogPage(page) {
       content_type: givenURL ? "other" : 'blog',
       source_url: page.url(),
       author: pageData.author,
-      user_id: '' // You can add this from config
+      user_id: ''
     };
     
   } catch (error) {

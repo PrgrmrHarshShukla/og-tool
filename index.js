@@ -21,8 +21,14 @@ function parseInputArgs() {
       config.pdfUrl = path.resolve(input);
     } 
     else {
-      const url = new URL(input);
-      config.urls.push(url);
+      const link = new URL(input);
+      config.urls.push({
+        href: link.href,
+        origin: link.origin,
+        host: link.host,
+        pathname: link.pathname,
+        hash: link.hash
+      });
       config.scrapeUrl = true;
     }
   }
@@ -34,7 +40,6 @@ async function run() {
   const config = parseInputArgs();
   const date = Date.now();
 
-  console.log("Config:\n", config);
   
 
   const result = await mainScraper('aline123', config);
